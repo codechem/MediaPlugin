@@ -134,6 +134,12 @@ namespace Plugin.Media
 			return pluralTitle;
 		}
 
+		public override void ViewWillDisappear(bool animated)
+		{
+			base.ViewWillDisappear(animated);
+			CancelledPicker();
+		}
+
 		public static ELCImagePickerViewController Create(StoreCameraMediaOptions options = null, MultiPickerOptions pickerOptions = null)
 		{
 			pickerOptions = pickerOptions ?? new MultiPickerOptions();
@@ -155,10 +161,67 @@ namespace Plugin.Media
 		private Task<MediaFile> GetPictureMediaFile(ALAsset asset, long index = 0)
 		{
 			var rep = asset.DefaultRepresentation;
-      if (rep == null)
-          return Task.FromResult(default(MediaFile));
+			var taskSource = new TaskCompletionSource<MediaFile>();
+			if (rep == null)
+				return Task.FromResult(default(MediaFile));
 
-      return _mediaPickerDelegate.GetPictureMediaFile(asset, index);
+			var cgImage = rep.GetImage();
+
+			UIImage image = null;
+			if (cgImage == null)
+			{
+				var fetch = PHAsset.FetchAssets(new[] { asset.AssetUrl }, null);
+				var ph = fetch.firstObject as PHAsset;
+				var manager = PHImageManager.DefaultManager;
+				var phOptions = new PHImageRequestOptions
+				{
+					Version = PHImageRequestOptionsVersion.Original,
+					NetworkAccessAllowed = true,
+					Synchronous = true
+				};
+
+				phOptions.ProgressHandler = (double progress, NSError error, out bool stop, NSDictionary info) =>
+				{
+					Debug.WriteLine($"Progress: {progress.ToString()}");
+					
+					stop = false;
+				};
+
+				if (UIDevice.CurrentDevice.CheckSystemVersion(13, 0))
+				{
+					manager.RequestImageDataAndOrientation(ph, phOptions, async (data, i, orientation, k) =>
+					{
+						if (data != null)
+						{
+							image = new UIImage(data, 1.0f);
+							var mediaFile = await _mediaPickerDelegate.GetPictureMediaFile(image, asset.DefaultRepresentation.Metadata,
+					asset.AssetUrl, index);
+							taskSource.SetResult(mediaFile);
+						}
+					});
+				}
+				else
+				{
+					manager.RequestImageData(ph, phOptions, async (data, i, orientation, k) =>
+					{
+						if (data != null)
+						{
+							image = new UIImage(data, 1.0f);
+							var mediaFile = await _mediaPickerDelegate.GetPictureMediaFile(image, asset.DefaultRepresentation.Metadata,
+						asset.AssetUrl, index);
+							taskSource.SetResult(mediaFile);
+						}
+					});
+				}
+				phOptions?.Dispose();
+				fetch?.Dispose();
+				ph?.Dispose();
+				return taskSource.Task;
+			}
+			else
+			{
+				return _mediaPickerDelegate.GetPictureMediaFile(asset, index);
+			}
 		}
 
 		void CancelledPicker()
@@ -529,25 +592,54 @@ namespace Plugin.Media
 				}
 			}
 
-			private void DoneClicked(object sender = null, EventArgs e = null)
+			private async void DoneClicked(object sender = null, EventArgs e = null)
 			{
 				var parent = Parent;
 				var selectedItemsIndex = CollectionView.GetIndexPathsForSelectedItems();
 				var selectedItemsCount = selectedItemsIndex.Length;
 				var selectedMediaFiles = new MediaFile[selectedItemsCount];
+				UIView pageOverlay = null;
+				UIActivityIndicatorView activityIndicator = null;
 
-				Parallel.For(0, selectedItemsCount, async selectedIndex =>
+				if (selectedItemsCount > 0)
 				{
-					var alAsset = AssetForIndexPath(selectedItemsIndex[selectedIndex]);
-					var mediaFile = await parent?.GetPictureMediaFile(alAsset, selectedIndex);
-					if (mediaFile != null)
+					InvokeOnMainThread(() =>
 					{
-						selectedMediaFiles[selectedIndex] = mediaFile;
-					}
+						pageOverlay = new UIView(View.Bounds);
+						pageOverlay.BackgroundColor = UIColor.Black.ColorWithAlpha(0.8f);
+						View.Add(pageOverlay);
 
-					alAsset?.Dispose();
-					alAsset = null;
-				});
+						activityIndicator = new UIActivityIndicatorView(View.Bounds);
+						activityIndicator.ActivityIndicatorViewStyle = UIActivityIndicatorViewStyle.WhiteLarge;
+						activityIndicator.StartAnimating();
+						View.Add(activityIndicator);
+					});
+				}
+
+
+				var tasks = new List<Task>();
+				for (int i = 0; i < selectedItemsCount; i++)
+				{
+					var j = i;
+					var t = Task.Run(async () =>
+					{
+						var alAsset = AssetForIndexPath(selectedItemsIndex[j]);
+						var mediaFile = await parent?.GetPictureMediaFile(alAsset, j);
+						if (mediaFile != null)
+						{
+							selectedMediaFiles[j] = mediaFile;
+						}
+
+						alAsset?.Dispose();
+						alAsset = null;
+					});
+					tasks.Add(t);
+				}
+
+				await Task.WhenAll(tasks);
+
+                pageOverlay?.RemoveFromSuperview();
+                activityIndicator?.RemoveFromSuperview();
 
                 //Some items in the array might be null. Let's remove them.
 				parent?.SelectedMediaFiles(selectedMediaFiles.Where(mf => mf != null).ToList());

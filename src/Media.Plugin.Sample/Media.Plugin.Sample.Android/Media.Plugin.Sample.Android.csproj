@@ -15,7 +15,6 @@
     <AndroidManifest>Properties\AndroidManifest.xml</AndroidManifest>
     <MonoAndroidResourcePrefix>Resources</MonoAndroidResourcePrefix>
     <MonoAndroidAssetsPrefix>Assets</MonoAndroidAssetsPrefix>
-    <AndroidUseLatestPlatformSdk>false</AndroidUseLatestPlatformSdk>
     <TargetFrameworkVersion>v9.0</TargetFrameworkVersion>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
@@ -54,7 +53,10 @@
     <PackageReference Include="Plugin.Permissions">
       <Version>5.0.0-beta</Version>
     </PackageReference>
-    <PackageReference Include="Xamarin.Forms" Version="4.2.0.848062" />
+    <PackageReference Include="Xamarin.FFImageLoading.Forms">
+      <Version>2.4.11.982</Version>
+    </PackageReference>
+    <PackageReference Include="Xamarin.Forms" Version="4.3.0.947036" />
     <PackageReference Include="Xamarin.Android.Support.Design" Version="28.0.0.3" />
     <PackageReference Include="Xamarin.Android.Support.v7.AppCompat" Version="28.0.0.3" />
     <PackageReference Include="Xamarin.Android.Support.v4" Version="28.0.0.3" />
@@ -102,7 +104,7 @@
       <Name>Media.Plugin</Name>
     </ProjectReference>
     <ProjectReference Include="..\Media.Plugin.Sample\Media.Plugin.Sample.csproj">
-      <Project>{B9EEC491-CF4E-4F53-BF9B-EF6EDF6ADFE5}</Project>
+      <Project>{16F4EBCE-FB1A-4A06-BB5B-2876E8C2CD7A}</Project>
       <Name>Media.Plugin.Sample</Name>
     </ProjectReference>
   </ItemGroup>
