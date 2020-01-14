@@ -158,12 +158,12 @@ namespace Plugin.Media
 			taskCompletionSource.TrySetResult(mediaFiles);
 		}
 
-		private Task<MediaFile> GetPictureMediaFile(ALAsset asset, long index = 0)
+		private async Task<MediaFile> GetPictureMediaFile(ALAsset asset, long index = 0)
 		{
 			var rep = asset.DefaultRepresentation;
 			var taskSource = new TaskCompletionSource<MediaFile>();
 			if (rep == null)
-				return Task.FromResult(default(MediaFile));
+				return default(MediaFile);
 
 			var cgImage = rep.GetImage();
 
@@ -183,45 +183,43 @@ namespace Plugin.Media
 				phOptions.ProgressHandler = (double progress, NSError error, out bool stop, NSDictionary info) =>
 				{
 					Debug.WriteLine($"Progress: {progress.ToString()}");
-					
+
 					stop = false;
 				};
 
 				if (UIDevice.CurrentDevice.CheckSystemVersion(13, 0))
 				{
-					manager.RequestImageDataAndOrientation(ph, phOptions, async (data, i, orientation, k) =>
+					manager.RequestImageDataAndOrientation(ph, phOptions, (data, i, orientation, k) =>
 					{
 						if (data != null)
 						{
 							image = new UIImage(data, 1.0f);
-							var mediaFile = await _mediaPickerDelegate.GetPictureMediaFile(image, asset.DefaultRepresentation.Metadata,
-					asset.AssetUrl, index);
-							taskSource.SetResult(mediaFile);
 						}
 					});
 				}
 				else
 				{
-					manager.RequestImageData(ph, phOptions, async (data, i, orientation, k) =>
+					manager.RequestImageData(ph, phOptions, (data, i, orientation, k) =>
 					{
 						if (data != null)
 						{
 							image = new UIImage(data, 1.0f);
-							var mediaFile = await _mediaPickerDelegate.GetPictureMediaFile(image, asset.DefaultRepresentation.Metadata,
-						asset.AssetUrl, index);
-							taskSource.SetResult(mediaFile);
+							
 						}
 					});
 				}
 				phOptions?.Dispose();
 				fetch?.Dispose();
 				ph?.Dispose();
-				return taskSource.Task;
 			}
 			else
 			{
-				return _mediaPickerDelegate.GetPictureMediaFile(asset, index);
+				image = new UIImage(cgImage, 1.0f, (UIImageOrientation)rep.Orientation);
 			}
+
+			var mediaFile = await _mediaPickerDelegate.GetPictureMediaFile(image, asset.DefaultRepresentation.Metadata,
+				asset.AssetUrl, index);
+			return mediaFile;
 		}
 
 		void CancelledPicker()
@@ -326,22 +324,22 @@ namespace Plugin.Media
 					return;
 				}
 
-                //We show photos only. Let's get only them
+				//We show photos only. Let's get only them
 				agroup.SetAssetsFilter(ALAssetsFilter.AllPhotos);
 
-                //do not add empty album
-                if (agroup.Count == 0)
-                {
-	                return;
-                }
+				//do not add empty album
+				if (agroup.Count == 0)
+				{
+					return;
+				}
 
-                //ALAssetsGroupType.All might have duplicated albums. let's skip the album if we already have it
-                if (assetGroups.Any(g => g.PersistentID == agroup.PersistentID))
-                {
-	                return;
-                }
-                
-                assetGroups.Add(agroup);
+				//ALAssetsGroupType.All might have duplicated albums. let's skip the album if we already have it
+				if (assetGroups.Any(g => g.PersistentID == agroup.PersistentID))
+				{
+					return;
+				}
+
+				assetGroups.Add(agroup);
 
 				dispatcher.BeginInvokeOnMainThread(ReloadTableView);
 			}
@@ -369,7 +367,7 @@ namespace Plugin.Media
 
 				// Get count
 				var g = assetGroups[indexPath.Row];
-				
+
 				var gCount = g.Count;
 				cell.TextLabel.Text = string.Format("{0} ({1})", g.Name, gCount);
 				try
@@ -389,7 +387,7 @@ namespace Plugin.Media
 			{
 				var assetGroup = assetGroups[indexPath.Row];
 				var picker = new ELCAssetTablePicker(assetGroup);
-				
+
 				picker.LoadingTitle = LoadingTitle;
 				picker.PickAssetTitle = PickAssetTitle;
 				picker.DoneButtonTitle = DoneButtonTitle;
@@ -456,12 +454,14 @@ namespace Plugin.Media
 				set => parent = new WeakReference(value);
 			}
 
-			public ELCAssetTablePicker(ALAssetsGroup assetGroup) : base(new UICollectionViewFlowLayout {
+			public ELCAssetTablePicker(ALAssetsGroup assetGroup) : base(new UICollectionViewFlowLayout
+			{
 				ItemSize = new CGSize(75, 75),
 				MinimumLineSpacing = 4,
 				MinimumInteritemSpacing = 4,
 				SectionInset = new UIEdgeInsets(0, 4, 0, 4),
-				ScrollDirection = UICollectionViewScrollDirection.Vertical })
+				ScrollDirection = UICollectionViewScrollDirection.Vertical
+			})
 			{
 				this.assetGroup = assetGroup;
 			}
@@ -546,7 +546,7 @@ namespace Plugin.Media
 					asset = null;
 					if (mediaFile != null)
 					{
-						Parent?.SelectedMediaFiles(new List<MediaFile>{ mediaFile });
+						Parent?.SelectedMediaFiles(new List<MediaFile> { mediaFile });
 					}
 					else
 					{
@@ -598,9 +598,12 @@ namespace Plugin.Media
 				var selectedItemsIndex = CollectionView.GetIndexPathsForSelectedItems();
 				var selectedItemsCount = selectedItemsIndex.Length;
 				var selectedMediaFiles = new MediaFile[selectedItemsCount];
+
+				//Create activity indicator if we have selected items.
+				//It will give the user some visual feedback that the app is still working
+				//if the media have to be downloaded from the iCloud
 				UIView pageOverlay = null;
 				UIActivityIndicatorView activityIndicator = null;
-
 				if (selectedItemsCount > 0)
 				{
 					InvokeOnMainThread(() =>
@@ -638,10 +641,10 @@ namespace Plugin.Media
 
 				await Task.WhenAll(tasks);
 
-                pageOverlay?.RemoveFromSuperview();
-                activityIndicator?.RemoveFromSuperview();
+				pageOverlay?.RemoveFromSuperview();
+				activityIndicator?.RemoveFromSuperview();
 
-                //Some items in the array might be null. Let's remove them.
+				//Some items in the array might be null. Let's remove them.
 				parent?.SelectedMediaFiles(selectedMediaFiles.Where(mf => mf != null).ToList());
 			}
 
@@ -666,7 +669,8 @@ namespace Plugin.Media
 				public override bool Highlighted
 				{
 					get => base.Highlighted;
-					set {
+					set
+					{
 						HighlightedView.Hidden = !value;
 						base.Highlighted = value;
 					}

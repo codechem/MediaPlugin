@@ -127,7 +127,7 @@ namespace Plugin.Media
 				if (IsValidInterfaceOrientation(UIDevice.CurrentDevice.Orientation))
 					orientation = UIDevice.CurrentDevice.Orientation;
 				else
-					orientation = getDeviceOrientation(viewController.InterfaceOrientation);
+					orientation = GetDeviceOrientation(viewController.InterfaceOrientation);
 			}
 
 			double x, y;
@@ -307,7 +307,7 @@ namespace Plugin.Media
 			if (image == null)
 				return null;
 
-			var pathExtension = url.PathExtension == "PNG" ? "png" : "jpg";
+			var pathExtension = url?.PathExtension == "PNG" ? "png" : "jpg";
 
 			var path = GetOutputPath(MediaImplementation.TypeImage,
 				options.Directory ?? ((IsCaptured) ? string.Empty : "temp"),
@@ -408,7 +408,7 @@ namespace Plugin.Media
 			if (!savedImage)
 			{
 				var finalQuality = quality;
-				var imageData = pathExtension == "jpg" ? image.AsJPEG(finalQuality) : image.AsPNG();
+				var imageData = pathExtension == "png" ? image.AsPNG() : image.AsJPEG(finalQuality);
 
 				//continue to move down quality , rare instances
 				while (imageData == null && finalQuality > 0)
@@ -490,7 +490,7 @@ namespace Plugin.Media
 			{
 				pathExtension = pathExtension.ToLowerInvariant();
 				var finalQuality = quality;
-				var imageData = pathExtension == "jpg" ? image.AsJPEG(finalQuality) : image.AsPNG();
+				var imageData = pathExtension == "png" ? image.AsPNG(): image.AsJPEG(finalQuality);
 
 				//continue to move down quality , rare instances
 				while (imageData == null && finalQuality > 0)
@@ -507,10 +507,10 @@ namespace Plugin.Media
 				 using var newImageSource = ciImage.CreateBySettingProperties(meta);
 				 using var ciContext = new CIContext();
 
-				if (pathExtension == "jpg")
-					return ciContext.WriteJpegRepresentation(newImageSource, NSUrl.FromFilename(path), CGColorSpace.CreateSrgb(), new NSDictionary(), out var error);
-
-				return ciContext.WritePngRepresentation(newImageSource, NSUrl.FromFilename(path), CIFormat.ARGB8, CGColorSpace.CreateSrgb(), new NSDictionary(), out var error2);
+				if (pathExtension == "png")
+					return ciContext.WritePngRepresentation(newImageSource, NSUrl.FromFilename(path), CIFormat.ARGB8, CGColorSpace.CreateSrgb(), new NSDictionary(), out var error2);
+				
+				return ciContext.WriteJpegRepresentation(newImageSource, NSUrl.FromFilename(path), CGColorSpace.CreateSrgb(), new NSDictionary(), out var error);
 			}
 			catch (Exception ex)
 			{
@@ -529,7 +529,7 @@ namespace Plugin.Media
 			{
 				pathExtension = pathExtension.ToLowerInvariant();
 				var finalQuality = quality;
-				var imageData = pathExtension == "jpg" ? image.AsJPEG(finalQuality) : image.AsPNG();
+				var imageData = pathExtension == "png" ? image.AsPNG() : image.AsJPEG(finalQuality);
 
 				//continue to move down quality , rare instances
 				while (imageData == null && finalQuality > 0)
@@ -694,6 +694,7 @@ namespace Plugin.Media
 
 		internal static string GetOutputPath(string type, string path, string name, string extension, long index = 0)
 		{
+			extension = extension.ToLowerInvariant();
 			path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), path);
 			Directory.CreateDirectory(path);
 
@@ -703,7 +704,7 @@ namespace Plugin.Media
 			if (string.IsNullOrWhiteSpace(name))
 			{
 				if (type == MediaImplementation.TypeImage)
-					name = extension == "jpg" ? $"IMG_{postpendName}.jpg" : $"IMG_{postpendName}.png";
+					name = extension == "png" ? $"IMG_{postpendName}.png" : $"IMG_{postpendName}.jpg";
 				else
 					name = $"VID_{postpendName}.{extension ?? "mp4"}";
 			}
@@ -737,7 +738,7 @@ namespace Plugin.Media
 			return false;
 		}
 
-		private static UIDeviceOrientation getDeviceOrientation(UIInterfaceOrientation self)
+		private static UIDeviceOrientation GetDeviceOrientation(UIInterfaceOrientation self)
 		{
 			switch (self)
 			{
@@ -836,7 +837,7 @@ namespace Plugin.Media
 
 			pathExtension = pathExtension.ToLowerInvariant();
 			var finalQuality = pathExtension == "jpg" ? (compressionQuality / 100f) : 0f;
-			var imageData = pathExtension == "jpg" ? imageToReturn.AsJPEG(finalQuality) : imageToReturn.AsPNG();
+			var imageData = pathExtension == "png" ? imageToReturn.AsPNG() : imageToReturn.AsJPEG(finalQuality);
 			//continue to move down quality , rare instances
 			while (imageData == null && finalQuality > 0)
 			{
